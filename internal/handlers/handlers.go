@@ -2,12 +2,16 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,14 +24,17 @@ import (
 	"teal-heatmap/internal/auth"
 	"teal-heatmap/internal/config"
 	"teal-heatmap/internal/process"
+	"teal-heatmap/internal/spotify"
 	"teal-heatmap/internal/store"
 	"teal-heatmap/internal/visualization"
 )
 
 const (
-	sessionCookieName = "teal_session"
-	flashCookieName   = "teal_flash"
-	sessionTTL        = 30 * 24 * time.Hour
+	sessionCookieName     = "teal_session"
+	flashCookieName       = "teal_flash"
+	sessionTTL            = 30 * 24 * time.Hour
+	spotifyDIDPrefix      = "spotify:"
+	maxSpotifyUploadBytes = 200 << 20 // 200 MB compressed ZIP
 )
 
 type syncJob struct {
@@ -74,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /oauth/login", s.handleOAuthLogin)
 	mux.HandleFunc("GET /oauth/callback", s.handleOAuthCallback)
 	mux.HandleFunc("POST /oauth/logout", s.handleOAuthLogout)
+	mux.HandleFunc("POST /upload/spotify", s.handleSpotifyUpload)
 	mux.HandleFunc("POST /sync", s.handleSync)
 	mux.HandleFunc("GET /api/day", s.handleAPIDay)
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
@@ -147,25 +155,39 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("get recent plays", "did", sess.DID, "err", err)
 	}
 
+	isSpotify := isSpotifySession(sess)
+
 	lastSynced := ""
 	if st, err := s.store.GetSyncState(ctx, sess.DID); err == nil {
-		lastSynced = fmt.Sprintf("%s (%d total cached plays)", st.LastSynced.UTC().Format("Jan 2, 2006 15:04 UTC"), st.TotalPlays)
+		if isSpotify {
+			lastSynced = fmt.Sprintf("Imported %s (%d total plays)", st.LastSynced.UTC().Format("Jan 2, 2006 15:04 UTC"), st.TotalPlays)
+		} else {
+			lastSynced = fmt.Sprintf("%s (%d total cached plays)", st.LastSynced.UTC().Format("Jan 2, 2006 15:04 UTC"), st.TotalPlays)
+		}
 	}
 
 	syncStatus := ""
-	if fetched, active := s.activeSyncProgress(sess.DID); active {
-		syncStatus = fmt.Sprintf("Syncing full teal.fm history in the background — %d plays fetched so far…", fetched)
+	if !isSpotify {
+		if fetched, active := s.activeSyncProgress(sess.DID); active {
+			syncStatus = fmt.Sprintf("Syncing full teal.fm history in the background — %d plays fetched so far…", fetched)
+		}
 	}
 
 	heatmap := process.BuildHeatmap(counts, selectedYear, years, now, time.UTC)
 	svg := visualization.RenderHeatmapSVG(heatmap)
 
+	title := "@" + sess.Handle
+	if isSpotify {
+		title = sess.Handle
+	}
+
 	page := visualization.PageData{
-		Title:   "@" + sess.Handle,
+		Title:   title,
 		Storage: s.cfg.Storage,
 		User: &visualization.UserView{
-			DID:    sess.DID,
-			Handle: sess.Handle,
+			DID:       sess.DID,
+			Handle:    sess.Handle,
+			IsSpotify: isSpotify,
 		},
 		FlashError:  flashErr,
 		FlashInfo:   flashInfo,
@@ -278,7 +300,11 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleOAuthLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if sess, err := s.currentSession(ctx, r); err == nil {
-		if sess.OAuthSessionID != "" && s.auth != nil {
+		if isSpotifySession(sess) {
+			if err := s.store.DeletePlaysForDID(ctx, sess.DID); err != nil {
+				slog.Warn("cleanup spotify plays on logout", "did", sess.DID, "err", err)
+			}
+		} else if sess.OAuthSessionID != "" && s.auth != nil {
 			if did, parseErr := syntax.ParseDID(sess.DID); parseErr == nil {
 				if err := s.auth.App.Logout(ctx, did, sess.OAuthSessionID); err != nil {
 					slog.Warn("oauth logout warning", "did", sess.DID, "err", err)
@@ -300,10 +326,112 @@ func (s *Server) handleOAuthLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func (s *Server) handleSpotifyUpload(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	r.Body = http.MaxBytesReader(w, r.Body, maxSpotifyUploadBytes)
+
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
+		slog.Warn("parse spotify upload multipart form", "err", err)
+		s.setFlash(w, "err", "Could not read uploaded file (max 100 MB ZIP).")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+
+	file, header, err := r.FormFile("spotify_zip")
+	if err != nil {
+		s.setFlash(w, "err", "Please select a Spotify streaming history .zip file to upload.")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	defer file.Close()
+
+	size := header.Size
+	if size <= 0 {
+		if end, seekErr := file.Seek(0, io.SeekEnd); seekErr == nil {
+			size = end
+			_, _ = file.Seek(0, io.SeekStart)
+		}
+	}
+
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		slog.Error("generate spotify session id", "err", err)
+		s.setFlash(w, "err", "Failed to start import session.")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	did := spotifyDIDPrefix + hex.EncodeToString(idBytes)
+
+	summary, err := spotify.ParseZip(file, size, did, func(batch []process.PlayRecord) error {
+		return s.store.UpsertPlays(ctx, batch)
+	})
+	if err != nil {
+		_ = s.store.DeletePlaysForDID(ctx, did)
+		slog.Warn("parse spotify zip failed", "filename", header.Filename, "err", err)
+		s.setFlash(w, "err", "Could not import Spotify ZIP: "+err.Error())
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	if summary.ImportedPlays == 0 {
+		_ = s.store.DeletePlaysForDID(ctx, did)
+		s.setFlash(w, "err", "No Spotify music plays (≥ 30 seconds) were found in that ZIP file.")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if err := s.store.UpdateSyncState(ctx, did); err != nil {
+		slog.Warn("update sync state after spotify import", "did", did, "err", err)
+	}
+
+	// Clean up any previous Spotify upload session for this browser before replacing it.
+	if prevSess, err := s.currentSession(ctx, r); err == nil && isSpotifySession(prevSess) {
+		_ = s.store.DeletePlaysForDID(ctx, prevSess.DID)
+		_ = s.store.DeleteAppSession(ctx, prevSess.Token)
+	}
+
+	appSess, err := s.store.CreateAppSession(ctx, did, "", "Spotify History", "", sessionTTL)
+	if err != nil {
+		_ = s.store.DeletePlaysForDID(ctx, did)
+		slog.Error("create spotify app session failed", "did", did, "err", err)
+		s.setFlash(w, "err", "Failed to save session.")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    appSess.Token,
+		Path:     "/",
+		Expires:  appSess.ExpiresAt,
+		HttpOnly: true,
+		Secure:   s.cfg.SecureCookie,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	name := filepath.Base(strings.TrimSpace(header.Filename))
+	if name == "" || name == "." {
+		name = "Spotify ZIP"
+	}
+	s.setFlash(w, "info", fmt.Sprintf("Imported %d Spotify plays from %s (%d files).", summary.ImportedPlays, name, summary.FilesProcessed))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func isSpotifySession(sess *store.AppSession) bool {
+	return sess != nil && strings.HasPrefix(sess.DID, spotifyDIDPrefix)
+}
+
 func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sess, err := s.currentSession(ctx, r)
 	if err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	if isSpotifySession(sess) {
+		s.setFlash(w, "info", "Spotify history is imported from a ZIP file — upload a new ZIP to update it.")
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}

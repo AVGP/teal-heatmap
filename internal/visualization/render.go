@@ -13,10 +13,12 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
-// UserView holds display information about the signed-in Atmosphere account.
+// UserView holds display information about the signed-in Atmosphere account
+// or imported Spotify session.
 type UserView struct {
-	DID    string
-	Handle string
+	DID       string
+	Handle    string
+	IsSpotify bool
 }
 
 // ArtistCount holds an artist name and play count for the top artists list.

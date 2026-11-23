@@ -98,6 +98,11 @@ main{padding:24px 0 48px}
 .login-form{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:20px 0 10px}
 .input{flex:1 1 240px;min-width:0;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:400 .95rem/1.2 var(--font)}
 .input::placeholder{color:var(--muted)}
+.divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
+.file-input{flex:1 1 240px;min-width:0;padding:8px 10px;border-radius:8px;border:1px dashed var(--border);background:var(--bg);color:var(--text);font:400 .88rem/1.2 var(--font);cursor:pointer}
+.file-input::file-selector-button{margin-right:10px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:600 .82rem/1.2 var(--font);cursor:pointer}
+.file-input::file-selector-button:hover{border-color:var(--accent)}
 .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px;text-align:left}
 .feat{padding:14px;border-radius:10px;background:var(--surface);border:1px solid var(--border)}
 .feat h3{margin:0 0 4px;font-size:.92rem;color:var(--accent-bright)}
@@ -165,9 +170,9 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
     <nav class="nav-right" aria-label="Account">
       <button type="button" class="btn btn-sm" id="theme-btn" aria-label="Toggle color theme" title="Toggle theme">Theme</button>
       {{if .User}}
-        <span class="pill" title="{{.User.DID}}">@{{.User.Handle}}</span>
+        <span class="pill" title="{{.User.DID}}">{{if .User.IsSpotify}}{{.User.Handle}}{{else}}@{{.User.Handle}}{{end}}</span>
         <form method="post" action="/oauth/logout" style="margin:0">
-          <button type="submit" class="btn btn-sm">Sign out</button>
+          <button type="submit" class="btn btn-sm">{{if .User.IsSpotify}}Clear &amp; exit{{else}}Sign out{{end}}</button>
         </form>
       {{end}}
     </nav>
@@ -212,6 +217,12 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
     var cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');
     var nxt=cur==='dark'?'light':'dark';
     r.setAttribute('data-theme',nxt);localStorage.setItem(k,nxt);
+  });
+
+  var uf=document.getElementById('spotify-upload-form');
+  if(uf)uf.addEventListener('submit',function(){
+    var b=uf.querySelector('button[type="submit"]');
+    if(b){b.disabled=true;b.textContent='Importing…';}
   });
 
   var svg=document.querySelector('.hm-svg');
@@ -270,7 +281,7 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
   function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
   function renderDay(data){
     var plays=data.plays||[];
-    if(!plays.length){dayList.innerHTML='<li class="muted">No teal.fm plays recorded on this date.</li>';return;}
+    if(!plays.length){dayList.innerHTML='<li class="muted">No plays recorded on this date.</li>';return;}
     dayList.innerHTML=plays.map(function(p){
       var t=p.playedAt?new Date(p.playedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
       var sub=esc(p.artistName)+(p.releaseName?' — '+esc(p.releaseName):'');
@@ -292,7 +303,7 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
 {{define "login"}}
 <section class="hero">
   <h1>Your <span class="brand-dot">teal.fm</span> listening history, visualized.</h1>
-  <p>Sign in with your Atmosphere (ATProto) handle to generate a fast, GitHub-style activity heatmap from your <span class="mono">fm.teal.feed.play</span> records.</p>
+  <p>Sign in with your Atmosphere (ATProto) handle or upload a Spotify listening history ZIP to generate a fast, GitHub-style activity heatmap.</p>
 
   <div class="card">
     <form class="login-form" method="post" action="/oauth/login">
@@ -301,6 +312,15 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
       <button type="submit" class="btn btn-primary">Sign in with Atmosphere</button>
     </form>
     <p class="muted" style="font-size:.82rem;margin:8px 0 0">Uses standard ATProto OAuth (PKCE + DPoP). Read-only access to your public PDS records.</p>
+
+    <div class="divider" role="separator">or</div>
+
+    <form class="login-form" id="spotify-upload-form" method="post" action="/upload/spotify" enctype="multipart/form-data">
+      <label for="spotify_zip" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Spotify listening history ZIP file</label>
+      <input class="file-input" id="spotify_zip" name="spotify_zip" type="file" accept=".zip,application/zip" required>
+      <button type="submit" class="btn">Upload Spotify ZIP</button>
+    </form>
+    <p class="muted" style="font-size:.82rem;margin:8px 0 0">Upload your Spotify Extended Streaming History (<span class="mono">.zip</span>). Music tracks played ≥ 30s generate the exact same heatmap as teal.fm.</p>
   </div>
 
   <div class="features">
@@ -324,18 +344,29 @@ footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font
 <div class="stack">
   <section class="dash-head">
     <div>
-      <h1>@{{.User.Handle}}</h1>
+      <h1>{{if .User.IsSpotify}}{{.User.Handle}}{{else}}@{{.User.Handle}}{{end}}</h1>
       <div class="muted" style="font-size:.84rem">
-        {{if .LastSynced}}Last synced {{.LastSynced}}{{else}}Not synced yet — click Sync now to fetch your teal.fm plays{{end}}
+        {{if .User.IsSpotify}}
+          {{if .LastSynced}}{{.LastSynced}}{{else}}Imported from Spotify ZIP{{end}}
+        {{else}}
+          {{if .LastSynced}}Last synced {{.LastSynced}}{{else}}Not synced yet — click Sync now to fetch your teal.fm plays{{end}}
+        {{end}}
       </div>
     </div>
     <div class="sync-bar">
-      <form method="post" action="/sync" style="margin:0">
-        <button type="submit" class="btn btn-primary btn-sm">Sync now</button>
-      </form>
-      <form method="post" action="/sync?full=1" style="margin:0">
-        <button type="submit" class="btn btn-sm" title="Re-fetch all teal.fm records from your PDS">Full resync</button>
-      </form>
+      {{if .User.IsSpotify}}
+        <form id="spotify-upload-form" method="post" action="/upload/spotify" enctype="multipart/form-data" style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="file-input" name="spotify_zip" type="file" accept=".zip,application/zip" required style="flex:0 1 220px;padding:4px 8px;font-size:.8rem">
+          <button type="submit" class="btn btn-primary btn-sm">Upload new ZIP</button>
+        </form>
+      {{else}}
+        <form method="post" action="/sync" style="margin:0">
+          <button type="submit" class="btn btn-primary btn-sm">Sync now</button>
+        </form>
+        <form method="post" action="/sync?full=1" style="margin:0">
+          <button type="submit" class="btn btn-sm" title="Re-fetch all teal.fm records from your PDS">Full resync</button>
+        </form>
+      {{end}}
     </div>
   </section>
 
