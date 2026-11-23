@@ -1,0 +1,12 @@
+# Binaries
+teal-heatmap
+teal-heatmap.exe
+*.exe
+
+# Environment files
+.env
+.env.local
+
+# IDE / OS
+.DS_Store
+Thumbs.db

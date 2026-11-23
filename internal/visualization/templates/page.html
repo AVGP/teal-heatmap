@@ -1,0 +1,436 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#081215">
+<title>{{.Title}} — teal.fm heatmap</title>
+<style>
+:root{
+  --bg:#081215;
+  --surface:#0e1d22;
+  --surface-2:#14282f;
+  --border:#1d3942;
+  --text:#ecfdfb;
+  --muted:#8ab0b5;
+  --accent:#14b8a6;
+  --accent-bright:#2dd4bf;
+  --accent-dim:#0f766e;
+  --danger:#f87171;
+  --hm-l0:#13262c;
+  --hm-l1:#0f4c4c;
+  --hm-l2:#0d7a74;
+  --hm-l3:#14b8a6;
+  --hm-l4:#5eead4;
+  --hm-stroke:rgba(255,255,255,.06);
+  --radius:12px;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#f2fbf9;
+    --surface:#ffffff;
+    --surface-2:#e6f7f4;
+    --border:#c5e7e1;
+    --text:#092629;
+    --muted:#476f73;
+    --accent:#0d9488;
+    --accent-bright:#0f766e;
+    --accent-dim:#115e59;
+    --danger:#dc2626;
+    --hm-l0:#dff2ee;
+    --hm-l1:#99f6e4;
+    --hm-l2:#2dd4bf;
+    --hm-l3:#0d9488;
+    --hm-l4:#115e59;
+    --hm-stroke:rgba(9,38,41,.08);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f2fbf9;
+  --surface:#ffffff;
+  --surface-2:#e6f7f4;
+  --border:#c5e7e1;
+  --text:#092629;
+  --muted:#476f73;
+  --accent:#0d9488;
+  --accent-bright:#0f766e;
+  --accent-dim:#115e59;
+  --danger:#dc2626;
+  --hm-l0:#dff2ee;
+  --hm-l1:#99f6e4;
+  --hm-l2:#2dd4bf;
+  --hm-l3:#0d9488;
+  --hm-l4:#115e59;
+  --hm-stroke:rgba(9,38,41,.08);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+a{color:var(--accent-bright);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+header.top{border-bottom:1px solid var(--border);background:var(--surface)}
+.top-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;flex-wrap:wrap;padding:8px 0}
+.brand{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:1.05rem;color:var(--text);letter-spacing:-.01em}
+.brand:hover{text-decoration:none}
+.brand-dot{color:var(--accent-bright)}
+.nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:.85rem;color:var(--text)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:600 .88rem/1.2 var(--font);cursor:pointer;transition:background .12s,border-color .12s}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#04201e}
+.btn-primary:hover{background:var(--accent-bright);border-color:var(--accent-bright)}
+.btn-sm{padding:5px 10px;font-size:.82rem}
+.btn:focus-visible,a:focus-visible,input:focus-visible,.hm-c:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+main{padding:24px 0 48px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.stack{display:grid;gap:16px}
+.alert{padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-size:.9rem}
+.alert-err{border-color:var(--danger);color:var(--danger)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:.85em}
+/* Login */
+.hero{max-width:560px;margin:24px auto;text-align:center}
+.hero h1{margin:0 0 10px;font-size:clamp(1.6rem,4vw,2.2rem);line-height:1.15;letter-spacing:-.02em}
+.hero p{margin:0 0 20px;color:var(--muted)}
+.login-form{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:20px 0 10px}
+.input{flex:1 1 240px;min-width:0;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:400 .95rem/1.2 var(--font)}
+.input::placeholder{color:var(--muted)}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px;text-align:left}
+.feat{padding:14px;border-radius:10px;background:var(--surface);border:1px solid var(--border)}
+.feat h3{margin:0 0 4px;font-size:.92rem;color:var(--accent-bright)}
+.feat p{margin:0;font-size:.84rem;color:var(--muted)}
+/* Dashboard */
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dash-head h1{margin:0;font-size:1.35rem;letter-spacing:-.01em}
+.sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat-k{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.stat-v{font-size:1.55rem;font-weight:700;margin-top:4px;color:var(--text);font-variant-numeric:tabular-nums}
+.stat-sub{font-size:.8rem;color:var(--muted);margin-top:2px}
+.years{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.yr{padding:5px 11px;border-radius:7px;font-size:.83rem;font-weight:600;color:var(--muted);border:1px solid transparent}
+.yr:hover{color:var(--text);background:var(--surface-2);text-decoration:none}
+.yr.active{background:var(--accent);color:#04201e}
+/* Heatmap SVG */
+.hm-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.hm-head h2{margin:0;font-size:1rem}
+.hm-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.hm-svg{display:block;max-width:none;height:auto}
+.hm-months text,.hm-days text{fill:var(--muted);font-size:10px;font-family:var(--font)}
+.hm-c{stroke:var(--hm-stroke);stroke-width:1;cursor:pointer}
+.hm-c:hover{stroke:var(--accent-bright);stroke-width:1.5}
+.hm-c.selected{stroke:var(--text);stroke-width:2}
+.hm-c.l0{fill:var(--hm-l0)}
+.hm-c.l1{fill:var(--hm-l1)}
+.hm-c.l2{fill:var(--hm-l2)}
+.hm-c.l3{fill:var(--hm-l3)}
+.hm-c.l4{fill:var(--hm-l4)}
+.hm-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:.8rem;color:var(--muted)}
+.legend{display:inline-flex;align-items:center;gap:4px}
+.lg{width:11px;height:11px;border-radius:2.5px;display:inline-block;border:1px solid var(--hm-stroke)}
+.lg.l0{background:var(--hm-l0)}.lg.l1{background:var(--hm-l1)}.lg.l2{background:var(--hm-l2)}.lg.l3{background:var(--hm-l3)}.lg.l4{background:var(--hm-l4)}
+/* Tooltip */
+#hm-tip{position:fixed;pointer-events:none;z-index:50;padding:6px 10px;border-radius:7px;background:var(--surface-2);border:1px solid var(--accent-dim);color:var(--text);font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:0;transform:translateY(2px);transition:opacity .08s,transform .08s;white-space:nowrap}
+#hm-tip.show{opacity:1;transform:translateY(0)}
+/* Lists */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--border)}
+.row-main{min-width:0}
+.row-title{font-weight:600;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-meta{flex:0 0 auto;font-size:.8rem;color:var(--accent-bright);font-variant-numeric:tabular-nums}
+.day-panel{content-visibility:auto}
+footer{border-top:1px solid var(--border);padding:18px 0;color:var(--muted);font-size:.82rem}
+.foot-inner{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="/">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="6" fill="#0f4c4c" stroke="#2dd4bf" stroke-width="1.5"/>
+        <rect x="6" y="13" width="3" height="5" rx="1" fill="#5eead4"/>
+        <rect x="10.5" y="9" width="3" height="9" rx="1" fill="#2dd4bf"/>
+        <rect x="15" y="6" width="3" height="12" rx="1" fill="#14b8a6"/>
+      </svg>
+      <span>teal<span class="brand-dot">.fm</span> heatmap</span>
+    </a>
+    <nav class="nav-right" aria-label="Account">
+      <button type="button" class="btn btn-sm" id="theme-btn" aria-label="Toggle color theme" title="Toggle theme">Theme</button>
+      {{if .User}}
+        <span class="pill" title="{{.User.DID}}">@{{.User.Handle}}</span>
+        <form method="post" action="/oauth/logout" style="margin:0">
+          <button type="submit" class="btn btn-sm">Sign out</button>
+        </form>
+      {{end}}
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  {{if .SyncStatus}}
+    <div class="alert" role="status" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <span>{{.SyncStatus}}</span>
+      <a class="btn btn-sm" href="/">Refresh</a>
+    </div>
+  {{end}}
+  {{if .FlashError}}
+    <div class="alert alert-err" role="alert" style="margin-bottom:16px">{{.FlashError}}</div>
+  {{end}}
+  {{if .FlashInfo}}
+    <div class="alert" role="status" style="margin-bottom:16px">{{.FlashInfo}}</div>
+  {{end}}
+
+  {{if .User}}
+    {{template "dashboard" .}}
+  {{else}}
+    {{template "login" .}}
+  {{end}}
+</main>
+
+<footer>
+  <div class="wrap foot-inner">
+    <span>Built for the Atmosphere &amp; <a href="https://teal.fm" rel="noopener">teal.fm</a> (<span class="mono">fm.teal.feed.play</span>)</span>
+    <span>{{if eq .Storage "memory"}}In-memory store{{else}}PostgreSQL cached{{end}}</span>
+  </div>
+</footer>
+
+<div id="hm-tip" role="tooltip" aria-hidden="true"></div>
+<script>
+(function(){
+  var r=document.documentElement,k='teal_theme',s=localStorage.getItem(k);
+  if(s==='dark'||s==='light')r.setAttribute('data-theme',s);
+  var tb=document.getElementById('theme-btn');
+  if(tb)tb.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');
+    var nxt=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',nxt);localStorage.setItem(k,nxt);
+  });
+
+  var svg=document.querySelector('.hm-svg');
+  var tip=document.getElementById('hm-tip');
+  if(!svg||!tip)return;
+
+  function showTip(el,x,y){
+    var lbl=el.getAttribute('aria-label');
+    if(!lbl)return;
+    tip.textContent=lbl;
+    tip.classList.add('show');
+    var tw=tip.offsetWidth,th=tip.offsetHeight;
+    var left=Math.min(window.innerWidth-tw-10,Math.max(10,x-tw/2));
+    var top=Math.max(10,y-th-12);
+    tip.style.left=left+'px';tip.style.top=top+'px';
+  }
+  function hideTip(){tip.classList.remove('show');}
+
+  svg.addEventListener('mouseover',function(e){
+    var c=e.target.closest('.hm-c');
+    if(!c){hideTip();return;}
+    var b=c.getBoundingClientRect();
+    showTip(c,b.left+b.width/2,b.top);
+  });
+  svg.addEventListener('mouseout',function(e){
+    if(e.target.closest('.hm-c'))hideTip();
+  });
+  svg.addEventListener('focusin',function(e){
+    var c=e.target.closest('.hm-c');
+    if(!c)return;
+    var b=c.getBoundingClientRect();
+    showTip(c,b.left+b.width/2,b.top);
+  });
+  svg.addEventListener('focusout',hideTip);
+
+  var panel=document.getElementById('day-panel');
+  var dayTitle=document.getElementById('day-title');
+  var dayList=document.getElementById('day-list');
+  if(!panel||!dayTitle||!dayList)return;
+
+  var cache={},selected=null;
+  function loadDay(el){
+    var d=el.getAttribute('data-d');
+    if(!d)return;
+    if(selected)selected.classList.remove('selected');
+    selected=el;el.classList.add('selected');
+    panel.hidden=false;
+    dayTitle.textContent='Plays on '+d;
+    if(cache[d]){renderDay(cache[d]);return;}
+    dayList.innerHTML='<li class="muted">Loading plays…</li>';
+    fetch('/api/day?date='+encodeURIComponent(d),{headers:{'Accept':'application/json'}})
+      .then(function(res){if(!res.ok)throw new Error('HTTP '+res.status);return res.json();})
+      .then(function(data){cache[d]=data;renderDay(data);})
+      .catch(function(){dayList.innerHTML='<li class="muted">Could not load plays for this day.</li>';});
+  }
+  function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+  function renderDay(data){
+    var plays=data.plays||[];
+    if(!plays.length){dayList.innerHTML='<li class="muted">No teal.fm plays recorded on this date.</li>';return;}
+    dayList.innerHTML=plays.map(function(p){
+      var t=p.playedAt?new Date(p.playedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+      var sub=esc(p.artistName)+(p.releaseName?' — '+esc(p.releaseName):'');
+      return '<li class="row"><div class="row-main"><div class="row-title">'+esc(p.trackName)+'</div><div class="row-sub">'+sub+'</div></div><span class="row-meta">'+esc(t)+'</span></li>';
+    }).join('');
+  }
+  svg.addEventListener('click',function(e){var c=e.target.closest('.hm-c');if(c)loadDay(c);});
+  svg.addEventListener('keydown',function(e){
+    if(e.key==='Enter'||e.key===' '){
+      var c=e.target.closest('.hm-c');
+      if(c){e.preventDefault();loadDay(c);}
+    }
+  });
+})();
+</script>
+</body>
+</html>{{end}}
+
+{{define "login"}}
+<section class="hero">
+  <h1>Your <span class="brand-dot">teal.fm</span> listening history, visualized.</h1>
+  <p>Sign in with your Atmosphere (ATProto) handle to generate a fast, GitHub-style activity heatmap from your <span class="mono">fm.teal.feed.play</span> records.</p>
+
+  <div class="card">
+    <form class="login-form" method="post" action="/oauth/login">
+      <label for="handle" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Atmosphere handle</label>
+      <input class="input" id="handle" name="handle" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="alice.bsky.social">
+      <button type="submit" class="btn btn-primary">Sign in with Atmosphere</button>
+    </form>
+    <p class="muted" style="font-size:.82rem;margin:8px 0 0">Uses standard ATProto OAuth (PKCE + DPoP). Read-only access to your public PDS records.</p>
+  </div>
+
+  <div class="features">
+    <div class="feat">
+      <h3>Direct from your PDS</h3>
+      <p>Reads <span class="mono">fm.teal.feed.play</span> and legacy <span class="mono">fm.teal.alpha.feed.play</span> records directly from your ATProto repository.</p>
+    </div>
+    <div class="feat">
+      <h3>Built for 3G speed</h3>
+      <p>Server-rendered inline SVG, zero external fonts or JS frameworks, gzipped responses under 12&nbsp;KB, and PostgreSQL caching.</p>
+    </div>
+    <div class="feat">
+      <h3>Inspect any day</h3>
+      <p>Click or focus any square in the heatmap to view the exact tracks, artists, and timestamps you played that day.</p>
+    </div>
+  </div>
+</section>
+{{end}}
+
+{{define "dashboard"}}
+<div class="stack">
+  <section class="dash-head">
+    <div>
+      <h1>@{{.User.Handle}}</h1>
+      <div class="muted" style="font-size:.84rem">
+        {{if .LastSynced}}Last synced {{.LastSynced}}{{else}}Not synced yet — click Sync now to fetch your teal.fm plays{{end}}
+      </div>
+    </div>
+    <div class="sync-bar">
+      <form method="post" action="/sync" style="margin:0">
+        <button type="submit" class="btn btn-primary btn-sm">Sync now</button>
+      </form>
+      <form method="post" action="/sync?full=1" style="margin:0">
+        <button type="submit" class="btn btn-sm" title="Re-fetch all teal.fm records from your PDS">Full resync</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="stats-grid" aria-label="Listening statistics">
+    <div class="stat">
+      <div class="stat-k">Total Plays</div>
+      <div class="stat-v">{{.Heatmap.Stats.TotalPlays}}</div>
+      <div class="stat-sub">{{.Heatmap.YearLabel}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-k">Active Days</div>
+      <div class="stat-v">{{.Heatmap.Stats.ActiveDays}}</div>
+      <div class="stat-sub">{{if gt .Heatmap.Stats.ActiveDays 0}}{{printf "%.1f" .Heatmap.Stats.AverageActiveDay}} plays / active day{{else}}No plays yet{{end}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-k">Current Streak</div>
+      <div class="stat-v">{{.Heatmap.Stats.CurrentStreak}}d</div>
+      <div class="stat-sub">Consecutive listening days</div>
+    </div>
+    <div class="stat">
+      <div class="stat-k">Longest Streak</div>
+      <div class="stat-v">{{.Heatmap.Stats.LongestStreak}}d</div>
+      <div class="stat-sub">{{if .Heatmap.Stats.MaxDayDate}}Peak: {{.Heatmap.Stats.MaxDayCount}} on {{.Heatmap.Stats.MaxDayDate}}{{else}}No peak yet{{end}}</div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Listening heatmap">
+    <div class="hm-head">
+      <h2>{{.Heatmap.Stats.TotalPlays}} plays in {{.Heatmap.YearLabel}}</h2>
+      <nav class="years" aria-label="Select time range">
+        <a class="yr {{if eq .Heatmap.SelectedYear 0}}active{{end}}" href="/">Last 12m</a>
+        {{range .Heatmap.AvailableYears}}
+          <a class="yr {{if eq $.Heatmap.SelectedYear .}}active{{end}}" href="/?year={{.}}">{{.}}</a>
+        {{end}}
+      </nav>
+    </div>
+
+    <div class="hm-scroll">
+      {{.HeatmapSVG}}
+    </div>
+
+    <div class="hm-foot">
+      <span>Click or press Enter on any day to inspect played tracks.</span>
+      <span class="legend" aria-label="Intensity scale from fewer plays to more plays">
+        <span>Less</span>
+        <span class="lg l0" title="0 plays"></span>
+        <span class="lg l1" title="1–{{index .Heatmap.Thresholds 0}} plays"></span>
+        <span class="lg l2" title="up to {{index .Heatmap.Thresholds 1}} plays"></span>
+        <span class="lg l3" title="up to {{index .Heatmap.Thresholds 2}} plays"></span>
+        <span class="lg l4" title="{{index .Heatmap.Thresholds 2}}+ plays"></span>
+        <span>More</span>
+      </span>
+    </div>
+  </section>
+
+  <section class="card day-panel" id="day-panel" hidden aria-live="polite">
+    <h2 id="day-title" style="margin:0 0 12px;font-size:1rem">Day details</h2>
+    <ul class="list" id="day-list"></ul>
+  </section>
+
+  <section class="cols">
+    <div class="card">
+      <h2 style="margin:0 0 12px;font-size:1rem">Top Artists ({{.Heatmap.YearLabel}})</h2>
+      {{if .TopArtists}}
+        <ul class="list">
+          {{range .TopArtists}}
+            <li class="row">
+              <div class="row-main"><div class="row-title">{{.Name}}</div></div>
+              <span class="row-meta">{{.Count}} plays</span>
+            </li>
+          {{end}}
+        </ul>
+      {{else}}
+        <p class="muted" style="margin:0">No plays cached for this period yet.</p>
+      {{end}}
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 12px;font-size:1rem">Recent Plays</h2>
+      {{if .RecentPlays}}
+        <ul class="list">
+          {{range .RecentPlays}}
+            <li class="row">
+              <div class="row-main">
+                <div class="row-title">{{.TrackName}}</div>
+                <div class="row-sub">{{.ArtistName}}{{if .ReleaseName}} — {{.ReleaseName}}{{end}}</div>
+              </div>
+              <span class="row-meta">{{.PlayedAt.Format "Jan 2"}}</span>
+            </li>
+          {{end}}
+        </ul>
+      {{else}}
+        <p class="muted" style="margin:0">No recent plays found yet.</p>
+      {{end}}
+    </div>
+  </section>
+</div>
+{{end}}
