@@ -27,7 +27,7 @@ services:
     environment:
       PORT: "8080"
       LISTEN_ADDR: ":8080"
-      BASE_URL: ${BASE_URL:-http://127.0.0.1:8080}
+      BASE_URL: ${BASE_URL:-https://listenmap.geekonaut.de}
       STORAGE: ${STORAGE:-postgres}
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-teal_heatmap}?sslmode=disable
       SESSION_SECRET: ${SESSION_SECRET:-}
