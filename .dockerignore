@@ -1,0 +1,8 @@
+.git
+.gitignore
+.env*
+*.exe
+teal-heatmap
+README.md
+docker-compose.yml
+Dockerfile

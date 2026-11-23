@@ -26,27 +26,26 @@ go run ./cmd/server -storage memory
 
 Then open **http://127.0.0.1:8080** and sign in with your Atmosphere handle (e.g. `alice.bsky.social`). Full ATProto OAuth and `teal.fm` PDS syncing work normally, with sessions and cached plays kept in memory until restart.
 
-### Option B: PostgreSQL (Persistent, Default)
+### Option B: Docker Compose (App + PostgreSQL)
 
-1. Start PostgreSQL:
-
-```bash
-docker compose up -d
-```
-
-Or point `DATABASE_URL` at any existing PostgreSQL instance. Tables and indexes are created automatically on startup.
-
-2. Run the server:
+Build and start both PostgreSQL and the main application:
 
 ```bash
-go run ./cmd/server
+docker compose up -d --build
 ```
 
 Then open **http://127.0.0.1:8080** in your browser (use `127.0.0.1`, not `localhost`, to match ATProto OAuth loopback rules) and sign in with your Atmosphere handle (e.g. `alice.bsky.social`).
 
+To run only PostgreSQL in Docker while running the Go server locally:
+
+```bash
+docker compose up -d postgres
+go run ./cmd/server
+```
+
 ### 3. Production Deployment (HTTPS)
 
-Set `BASE_URL=https://your-domain.example` and `LISTEN_ADDR=:8080` behind your TLS reverse proxy. The server automatically switches from loopback OAuth to public client metadata mode and serves `/oauth/client-metadata.json`.
+Set `BASE_URL=https://your-domain.example` and a persistent `SESSION_SECRET` (e.g. in `.env`) and deploy with `docker compose up -d --build` behind your TLS reverse proxy (or run the binary directly with `LISTEN_ADDR=:8080`). The server automatically switches from loopback OAuth to public client metadata mode and serves `/oauth/client-metadata.json`.
 
 ## Project Structure
 
